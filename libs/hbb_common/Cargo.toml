@@ -57,6 +57,7 @@ tokio-native-tls ="0.3"
 
 [features]
 quic = []
+flatpak = []
 
 [build-dependencies]
 protobuf-codegen = { version = "3.4" }

@@ -1,4 +1,4 @@
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual_display_driver"))]
 use crate::platform::is_installed;
 use crate::ui_interface::get_option;
 #[cfg(windows)]
@@ -27,9 +27,9 @@ pub mod win_mag;
 #[cfg(windows)]
 pub mod win_topmost_window;
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual_display_driver"))]
 mod win_virtual_display;
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual_display_driver"))]
 pub use win_virtual_display::restore_reg_connectivity;
 
 pub const INVALID_PRIVACY_MODE_CONN_ID: i32 = 0;
@@ -44,7 +44,7 @@ pub const PRIVACY_MODE_IMPL_WIN_MAG: &str = win_mag::PRIVACY_MODE_IMPL;
 pub const PRIVACY_MODE_IMPL_WIN_EXCLUDE_FROM_CAPTURE: &str =
     win_exclude_from_capture::PRIVACY_MODE_IMPL;
 
-#[cfg(windows)]
+#[cfg(all(windows, feature = "virtual_display_driver"))]
 pub const PRIVACY_MODE_IMPL_WIN_VIRTUAL_DISPLAY: &str = win_virtual_display::PRIVACY_MODE_IMPL;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,9 +103,16 @@ lazy_static::lazy_static! {
                 if display_service::is_privacy_mode_mag_supported() {
                     PRIVACY_MODE_IMPL_WIN_MAG
                 } else {
-                    if is_installed() {
-                        PRIVACY_MODE_IMPL_WIN_VIRTUAL_DISPLAY
-                    } else {
+                    #[cfg(feature = "virtual_display_driver")]
+                    {
+                        if is_installed() {
+                            PRIVACY_MODE_IMPL_WIN_VIRTUAL_DISPLAY
+                        } else {
+                            ""
+                        }
+                    }
+                    #[cfg(not(feature = "virtual_display_driver"))]
+                    {
                         ""
                     }
                 }
@@ -150,6 +157,7 @@ lazy_static::lazy_static! {
                 });
             }
 
+            #[cfg(feature = "virtual_display_driver")]
             map.insert(win_virtual_display::PRIVACY_MODE_IMPL, |impl_key: &str| {
                     Box::new(win_virtual_display::PrivacyModeImpl::new(impl_key))
                 });
@@ -328,6 +336,7 @@ pub fn get_supported_privacy_mode_impl() -> Vec<(&'static str, &'static str)> {
             }
         }
 
+        #[cfg(feature = "virtual_display_driver")]
         if is_installed() && crate::platform::windows::is_self_service_running() {
             vec_impls.push((
                 PRIVACY_MODE_IMPL_WIN_VIRTUAL_DISPLAY,

@@ -248,12 +248,13 @@ mod hw {
     use super::*;
 
     pub fn test(c: &mut Capturer, width: usize, height: usize, quality: Q, yuv_count: usize) {
+        let best = HwRamEncoder::best();
         let mut h264s = Vec::new();
         let mut h265s = Vec::new();
-        if let Some(info) = HwRamEncoder::try_get(CodecFormat::H264) {
+        if let Some(info) = best.h264 {
             test_encoder(width, height, quality, info, c, yuv_count, &mut h264s);
         }
-        if let Some(info) = HwRamEncoder::try_get(CodecFormat::H265) {
+        if let Some(info) = best.h265 {
             test_encoder(width, height, quality, info, c, yuv_count, &mut h265s);
         }
         test_decoder(CodecFormat::H264, &h264s);

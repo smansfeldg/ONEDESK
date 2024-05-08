@@ -44,8 +44,8 @@ fn check_desktop_manager() {
     }
 }
 
+// --server process
 pub fn start_xdesktop() {
-    debug_assert!(crate::is_server());
     std::thread::spawn(|| {
         *DESKTOP_MANAGER.lock().unwrap() = Some(DesktopManager::new());
 
@@ -91,7 +91,6 @@ fn detect_headless() -> Option<&'static str> {
 }
 
 pub fn try_start_desktop(_username: &str, _passsword: &str) -> String {
-    debug_assert!(crate::is_server());
     if _username.is_empty() {
         let username = get_username();
         if username.is_empty() {
@@ -246,7 +245,7 @@ impl DesktopManager {
     fn try_start_x_session(&mut self, username: &str, password: &str) -> ResultType<()> {
         match get_user_by_name(username) {
             Some(userinfo) => {
-                let mut client = pam::Client::with_password(&pam_get_service_name())?;
+                let mut client = pam::Client::with_password(pam_get_service_name())?;
                 client
                     .conversation_mut()
                     .set_credentials(username, password);
@@ -379,7 +378,7 @@ impl DesktopManager {
         password: String,
         envs: HashMap<&str, String>,
     ) -> ResultType<()> {
-        let mut client = pam::Client::with_password(&pam_get_service_name())?;
+        let mut client = pam::Client::with_password(pam_get_service_name())?;
         client
             .conversation_mut()
             .set_credentials(&username, &password);
@@ -668,8 +667,6 @@ impl DesktopManager {
     ) -> ResultType<Child> {
         let xorg = Self::get_xorg();
         log::info!("Use xorg: {}", &xorg);
-        let app_name = crate::get_app_name().to_lowercase();
-        let conf = format!("/etc/{app_name}/xorg.conf");
         match Command::new(xorg)
             .envs(envs)
             .uid(uid)
@@ -682,8 +679,10 @@ impl DesktopManager {
                 "RANDR",
                 "+extension",
                 "RENDER",
+                //"-logfile",
+                //"/tmp/RustDesk_xorg.log",
                 "-config",
-                conf.as_ref(),
+                "/etc/rustdesk/xorg.conf",
                 "-auth",
                 xauth,
                 display,
@@ -702,8 +701,7 @@ impl DesktopManager {
         gid: u32,
         envs: &HashMap<&str, String>,
     ) -> ResultType<Child> {
-        let app_name = crate::get_app_name().to_lowercase();
-        match Command::new(&format!("/etc/{app_name}/startwm.sh"))
+        match Command::new("/etc/rustdesk/startwm.sh")
             .envs(envs)
             .uid(uid)
             .gid(gid)
@@ -730,11 +728,10 @@ impl DesktopManager {
     }
 }
 
-fn pam_get_service_name() -> String {
-    let app_name = crate::get_app_name().to_lowercase();
-    if Path::new(&format!("/etc/pam.d/{app_name}")).is_file() {
-        app_name
+fn pam_get_service_name() -> &'static str {
+    if Path::new("/etc/pam.d/rustdesk").is_file() {
+        "rustdesk"
     } else {
-        "gdm".to_owned()
+        "gdm"
     }
 }

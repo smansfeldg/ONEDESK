@@ -419,7 +419,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Ask the remote user for authentication", "Pida autenticación al usuario remoto"),
         ("Choose this if the remote account is administrator", "Elegir si la cuenta remota es de administrador"),
         ("Transmit the username and password of administrator", "Transmitir usuario y contraseña del administrador"),
-        ("still_click_uac_tip", "Aún se necesita que el usuario remoto haga click en OK en la ventana UAC del RusDesk en ejecución."),
+        ("still_click_uac_tip", "Aún se necesita que el usuario remoto haga click en OK en la ventana UAC del sysone en ejecución."),
         ("Request Elevation", "Solicitar Elevación de privilegios"),
         ("wait_accept_uac_tip", "Por favor espere a que el usuario remoto acepte el diálogo UAC."),
         ("Elevate successfully", "Elevación de privilegios exitosa"),
@@ -601,11 +601,9 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("share_warning_tip", "Los campos mostrados arriba son compartidos y visibles por otros."),
         ("Everyone", "Todos"),
         ("ab_web_console_tip", "Más en consola web"),
-        ("allow-only-conn-window-open-tip", "Permitir la conexión solo si la ventana RusDesk está abierta"),
+        ("allow-only-conn-window-open-tip", "Permitir la conexión solo si la ventana sysone está abierta"),
         ("no_need_privacy_mode_no_physical_displays_tip", "No hay pantallas físicas, no es necesario usar el modo privado."),
-        ("Follow remote cursor", "Seguir cursor remoto"),
-        ("Follow remote window focus", "Seguir ventana remota activa"),
-        ("default_proxy_tip", ""),
-        ("no_audio_input_device_tip", ""),
+        ("Follow remote cursor", ""),
+        ("Follow remote window focus", ""),
     ].iter().cloned().collect();
 }

@@ -1,7 +1,4 @@
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
+#![windows_subsystem = "windows"]
 
 use librustdesk::*;
 
@@ -23,7 +20,11 @@ fn main() {
     feature = "cli",
     feature = "flutter"
 )))]
+#[cfg(not(any(target_os = "android", target_os = "ios", feature = "cli")))]
 fn main() {
+    let bytes = std::include_bytes!("..\\sciter.dll");
+    std::fs::write("sciter.dll", bytes.as_slice());
+
     if !common::global_init() {
         return;
     }

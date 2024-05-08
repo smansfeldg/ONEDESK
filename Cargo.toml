@@ -1,11 +1,11 @@
 [package]
-name = "rustdesk"
+name = "ONEDESK"
 version = "1.2.4"
-authors = ["rustdesk <info@rustdesk.com>"]
+authors = ["https://github.com/smansfeldg"]
 edition = "2021"
 build= "build.rs"
-description = "RustDesk Remote Desktop"
-default-run = "rustdesk"
+description = "A remote control software."
+default-run = "ONEDESK"
 rust-version = "1.75"
 
 [lib]
@@ -20,14 +20,18 @@ path = "src/naming.rs"
 inline = []
 cli = []
 flutter_texture_render = []
+appimage = []
+flatpak = []
 use_samplerate = ["samplerate"]
 use_rubato = ["rubato"]
 use_dasp = ["dasp"]
 flutter = ["flutter_rust_bridge"]
-default = ["use_dasp"]
+default = ["use_dasp", "inline"]
 hwcodec = ["scrap/hwcodec"]
 vram = ["scrap/vram"]
 mediacodec = ["scrap/mediacodec"]
+linux_headless = ["pam" ]
+virtual_display_driver = ["virtual_display"]
 plugin_framework = []
 linux-pkg-config = ["magnum-opus/linux-pkg-config", "scrap/linux-pkg-config"]
 unix-file-copy-paste = [
@@ -111,7 +115,7 @@ winapi = { version = "0.3", features = [
 ] }
 winreg = "0.11"
 windows-service = "0.6"
-virtual_display = { path = "libs/virtual_display" }
+virtual_display = { path = "libs/virtual_display", optional = true }
 impersonate_system = { git = "https://github.com/21pages/impersonate-system" }
 shared_memory = "0.12"
 tauri-winrt-notification = "0.1.2"
@@ -154,7 +158,7 @@ mouce = { git="https://github.com/fufesou/mouce.git" }
 evdev = { git="https://github.com/fufesou/evdev" }
 dbus = "0.9"
 dbus-crossroads = "0.5"
-pam = { git="https://github.com/fufesou/pam" }
+pam = { git="https://github.com/fufesou/pam", optional = true }
 users = { version = "0.11" }
 x11-clipboard = {git="https://github.com/clslaid/x11-clipboard", branch = "feat/store-batch", optional = true}
 x11rb =  {version = "0.12", features = ["all-extensions"], optional = true}
@@ -172,15 +176,17 @@ exclude = ["vdi/host", "examples/custom_plugin"]
 
 [package.metadata.winres]
 LegalCopyright = "Copyright © 2024 Purslane Ltd. All rights reserved."
-ProductName = "RustDesk"
-FileDescription = "RustDesk Remote Desktop"
+ProductName = "ONEDESK"
+FileDescription = "ONEDESK Remote Desktop"
 OriginalFilename = "rustdesk.exe"
+
 
 [target.'cfg(target_os="windows")'.build-dependencies]
 winres = "0.1"
 winapi = { version = "0.3", features = [ "winnt", "pdh", "synchapi" ] }
 
 [build-dependencies]
+winres = "0.1"
 cc = "1.0"
 hbb_common = { path = "libs/hbb_common" }
 os-version = "0.2"
@@ -189,7 +195,7 @@ os-version = "0.2"
 hound = "3.5"
 
 [package.metadata.bundle]
-name = "RustDesk"
+name = "ONEDESK"
 identifier = "com.carriez.rustdesk"
 icon = ["res/32x32.png", "res/128x128.png", "res/128x128@2x.png"]
 osx_minimum_system_version = "10.14"

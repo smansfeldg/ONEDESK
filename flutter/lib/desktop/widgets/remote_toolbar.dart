@@ -3,7 +3,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/toolbar.dart';
 import 'package:flutter_hbb/models/chat_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
@@ -1954,71 +1953,34 @@ class _VoiceCallMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    menuChildrenGetter() {
-      final audioInput =
-          AudioInput(builder: (devices, currentDevice, setDevice) {
-        return Column(
-          children: devices
-              .map((d) => RdoMenuButton<String>(
-                    child: Container(
-                      child: Text(
-                        d,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      constraints: BoxConstraints(maxWidth: 250),
-                    ),
-                    value: d,
-                    groupValue: currentDevice,
-                    onChanged: (v) {
-                      if (v != null) setDevice(v);
-                    },
-                    ffi: ffi,
-                  ))
-              .toList(),
-        );
-      });
-      return [
-        audioInput,
-        Divider(),
-        MenuButton(
-          child: Text(translate('End call')),
-          onPressed: () => bind.sessionCloseVoiceCall(sessionId: ffi.sessionId),
-          ffi: ffi,
-        ),
-      ];
-    }
-
     return Obx(
       () {
+        final String tooltip;
+        final String icon;
         switch (ffi.chatModel.voiceCallStatus.value) {
           case VoiceCallStatus.waitingForResponse:
-            return buildCallWaiting(context);
+            tooltip = "Waiting";
+            icon = "assets/call_wait.svg";
+            break;
           case VoiceCallStatus.connected:
-            return _IconSubmenuButton(
-              tooltip: 'Voice call',
-              svg: 'assets/voice_call.svg',
-              color: _ToolbarTheme.blueColor,
-              hoverColor: _ToolbarTheme.hoverBlueColor,
-              menuChildrenGetter: menuChildrenGetter,
-              ffi: ffi,
-            );
+            tooltip = "Disconnect";
+            icon = "assets/call_end.svg";
+            break;
           default:
             return Offstage();
         }
+        return _IconMenuButton(
+            assetName: icon,
+            tooltip: tooltip,
+            onPressed: () =>
+                bind.sessionCloseVoiceCall(sessionId: ffi.sessionId),
+            color: _ToolbarTheme.redColor,
+            hoverColor: _ToolbarTheme.hoverRedColor);
       },
     );
   }
-
-  Widget buildCallWaiting(BuildContext context) {
-    return _IconMenuButton(
-      assetName: "assets/call_wait.svg",
-      tooltip: "Waiting",
-      onPressed: () => bind.sessionCloseVoiceCall(sessionId: ffi.sessionId),
-      color: _ToolbarTheme.redColor,
-      hoverColor: _ToolbarTheme.hoverRedColor,
-    );
-  }
 }
+
 class _RecordMenu extends StatelessWidget {
   const _RecordMenu({Key? key}) : super(key: key);
 
@@ -2153,7 +2115,7 @@ class _IconSubmenuButton extends StatefulWidget {
   final Color hoverColor;
   final List<Widget> Function() menuChildrenGetter;
   final MenuStyle? menuStyle;
-  final FFI? ffi;
+  final FFI ffi;
   final double? width;
 
   _IconSubmenuButton({
@@ -2164,7 +2126,7 @@ class _IconSubmenuButton extends StatefulWidget {
     required this.color,
     required this.hoverColor,
     required this.menuChildrenGetter,
-    this.ffi,
+    required this.ffi,
     this.menuStyle,
     this.width,
   }) : super(key: key);
@@ -2246,13 +2208,13 @@ class MenuButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final Widget? trailingIcon;
   final Widget? child;
-  final FFI? ffi;
+  final FFI ffi;
   MenuButton(
       {Key? key,
       this.onPressed,
       this.trailingIcon,
       required this.child,
-      this.ffi})
+      required this.ffi})
       : super(key: key);
 
   @override
@@ -2261,9 +2223,7 @@ class MenuButton extends StatelessWidget {
         key: key,
         onPressed: onPressed != null
             ? () {
-                if (ffi != null) {
-                  _menuDismissCallback(ffi!);
-                }
+                _menuDismissCallback(ffi);
                 onPressed?.call();
               }
             : null,
@@ -2276,13 +2236,13 @@ class CkbMenuButton extends StatelessWidget {
   final bool? value;
   final ValueChanged<bool?>? onChanged;
   final Widget? child;
-  final FFI? ffi;
+  final FFI ffi;
   const CkbMenuButton(
       {Key? key,
       required this.value,
       required this.onChanged,
       required this.child,
-      this.ffi})
+      required this.ffi})
       : super(key: key);
 
   @override
@@ -2293,9 +2253,7 @@ class CkbMenuButton extends StatelessWidget {
       child: child,
       onChanged: onChanged != null
           ? (bool? value) {
-              if (ffi != null) {
-                _menuDismissCallback(ffi!);
-              }
+              _menuDismissCallback(ffi);
               onChanged?.call(value);
             }
           : null,
@@ -2308,13 +2266,13 @@ class RdoMenuButton<T> extends StatelessWidget {
   final T? groupValue;
   final ValueChanged<T?>? onChanged;
   final Widget? child;
-  final FFI? ffi;
+  final FFI ffi;
   const RdoMenuButton({
     Key? key,
     required this.value,
     required this.groupValue,
     required this.child,
-    this.ffi,
+    required this.ffi,
     this.onChanged,
   }) : super(key: key);
 
@@ -2326,9 +2284,7 @@ class RdoMenuButton<T> extends StatelessWidget {
       child: child,
       onChanged: onChanged != null
           ? (T? value) {
-              if (ffi != null) {
-                _menuDismissCallback(ffi!);
-              }
+              _menuDismissCallback(ffi);
               onChanged?.call(value);
             }
           : null,
@@ -2515,11 +2471,10 @@ class InputModeMenu {
 
 _menuDismissCallback(FFI ffi) => ffi.inputModel.refreshMousePos();
 
-Widget _buildPointerTrackWidget(Widget child, FFI? ffi) {
+Widget _buildPointerTrackWidget(Widget child, FFI ffi) {
   return Listener(
-    onPointerHover: (PointerHoverEvent e) => {
-      if (ffi != null) {ffi.inputModel.lastMousePos = e.position}
-    },
+    onPointerHover: (PointerHoverEvent e) =>
+        ffi.inputModel.lastMousePos = e.position,
     child: MouseRegion(
       child: child,
     ),

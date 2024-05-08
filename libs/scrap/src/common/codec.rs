@@ -36,7 +36,7 @@ use hbb_common::{config::Config2, lazy_static};
 
 lazy_static::lazy_static! {
     static ref PEER_DECODINGS: Arc<Mutex<HashMap<i32, SupportedDecoding>>> = Default::default();
-    static ref ENCODE_CODEC_FORMAT: Arc<Mutex<CodecFormat>> = Arc::new(Mutex::new(CodecFormat::VP9));
+    static ref ENCODE_CODEC_NAME: Arc<Mutex<CodecName>> = Arc::new(Mutex::new(CodecName::VP9));
     static ref THREAD_LOG_TIME: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
 }
 
@@ -138,7 +138,7 @@ impl Encoder {
                 Err(e) => {
                     log::error!("new hw encoder failed: {e:?}, clear config");
                     hbb_common::config::HwCodecConfig::clear_ram();
-                    *ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
+                    *ENCODE_CODEC_NAME.lock().unwrap() = CodecName::VP9;
                     Err(e)
                 }
             },
@@ -150,7 +150,7 @@ impl Encoder {
                 Err(e) => {
                     log::error!("new vram encoder failed: {e:?}, clear config");
                     hbb_common::config::HwCodecConfig::clear_vram();
-                    *ENCODE_CODEC_FORMAT.lock().unwrap() = CodecFormat::VP9;
+                    *ENCODE_CODEC_NAME.lock().unwrap() = CodecName::VP9;
                     Err(e)
                 }
             },
@@ -180,9 +180,7 @@ impl Encoder {
         }
 
         let vp8_useable = decodings.len() > 0 && decodings.iter().all(|(_, s)| s.ability_vp8 > 0);
-        let av1_useable = decodings.len() > 0
-            && decodings.iter().all(|(_, s)| s.ability_av1 > 0)
-            && !disable_av1();
+        let av1_useable = decodings.len() > 0 && decodings.iter().all(|(_, s)| s.ability_av1 > 0);
         let _all_support_h264_decoding =
             decodings.len() > 0 && decodings.iter().all(|(_, s)| s.ability_h264 > 0);
         let _all_support_h265_decoding =
@@ -194,36 +192,35 @@ impl Encoder {
         #[cfg(feature = "vram")]
         if enable_vram_option() {
             if _all_support_h264_decoding {
-                if VRamEncoder::available(CodecFormat::H264).len() > 0 {
+                if VRamEncoder::available(CodecName::H264VRAM).len() > 0 {
                     h264vram_encoding = true;
                 }
             }
             if _all_support_h265_decoding {
-                if VRamEncoder::available(CodecFormat::H265).len() > 0 {
+                if VRamEncoder::available(CodecName::H265VRAM).len() > 0 {
                     h265vram_encoding = true;
                 }
             }
         }
         #[allow(unused_mut)]
-        let mut h264hw_encoding: Option<String> = None;
+        let mut h264hw_encoding = None;
         #[allow(unused_mut)]
-        let mut h265hw_encoding: Option<String> = None;
+        let mut h265hw_encoding = None;
         #[cfg(feature = "hwcodec")]
         if enable_hwcodec_option() {
+            let best = HwRamEncoder::best();
             if _all_support_h264_decoding {
-                h264hw_encoding =
-                    HwRamEncoder::try_get(CodecFormat::H264).map_or(None, |c| Some(c.name));
+                h264hw_encoding = best.h264.map_or(None, |c| Some(c.name));
             }
             if _all_support_h265_decoding {
-                h265hw_encoding =
-                    HwRamEncoder::try_get(CodecFormat::H265).map_or(None, |c| Some(c.name));
+                h265hw_encoding = best.h265.map_or(None, |c| Some(c.name));
             }
         }
         let h264_useable =
             _all_support_h264_decoding && (h264vram_encoding || h264hw_encoding.is_some());
         let h265_useable =
             _all_support_h265_decoding && (h265vram_encoding || h265hw_encoding.is_some());
-        let mut format = ENCODE_CODEC_FORMAT.lock().unwrap();
+        let mut name = ENCODE_CODEC_NAME.lock().unwrap();
         let preferences: Vec<_> = decodings
             .iter()
             .filter(|(_, s)| {
@@ -251,28 +248,36 @@ impl Encoder {
         let preference = most_frequent.enum_value_or(PreferCodec::Auto);
 
         #[allow(unused_mut)]
-        let mut auto_codec = CodecFormat::VP9;
+        let mut auto_codec = CodecName::VP9;
+        // aom is very slow for x86 sciter version on windows x64
+        if av1_useable && !(cfg!(windows) && std::env::consts::ARCH == "x86") {
+            auto_codec = CodecName::AV1;
+        }
         let mut system = System::new();
         system.refresh_memory();
         if vp8_useable && system.total_memory() <= 4 * 1024 * 1024 * 1024 {
             // 4 Gb
-            auto_codec = CodecFormat::VP8
+            auto_codec = CodecName::VP8
         }
 
-        *format = match preference {
-            PreferCodec::VP8 => CodecFormat::VP8,
-            PreferCodec::VP9 => CodecFormat::VP9,
-            PreferCodec::AV1 => CodecFormat::AV1,
+        *name = match preference {
+            PreferCodec::VP8 => CodecName::VP8,
+            PreferCodec::VP9 => CodecName::VP9,
+            PreferCodec::AV1 => CodecName::AV1,
             PreferCodec::H264 => {
-                if h264vram_encoding || h264hw_encoding.is_some() {
-                    CodecFormat::H264
+                if h264vram_encoding {
+                    CodecName::H264VRAM
+                } else if let Some(v) = h264hw_encoding {
+                    CodecName::H264RAM(v)
                 } else {
                     auto_codec
                 }
             }
             PreferCodec::H265 => {
-                if h265vram_encoding || h265hw_encoding.is_some() {
-                    CodecFormat::H265
+                if h265vram_encoding {
+                    CodecName::H265VRAM
+                } else if let Some(v) = h265hw_encoding {
+                    CodecName::H265RAM(v)
                 } else {
                     auto_codec
                 }
@@ -287,21 +292,21 @@ impl Encoder {
                 "connection count: {}, used preference: {:?}, encoder: {:?}",
                 decodings.len(),
                 preference,
-                *format
+                *name
             )
         }
     }
 
     #[inline]
-    pub fn negotiated_codec() -> CodecFormat {
-        ENCODE_CODEC_FORMAT.lock().unwrap().clone()
+    pub fn negotiated_codec() -> CodecName {
+        ENCODE_CODEC_NAME.lock().unwrap().clone()
     }
 
     pub fn supported_encoding() -> SupportedEncoding {
         #[allow(unused_mut)]
         let mut encoding = SupportedEncoding {
             vp8: true,
-            av1: !disable_av1(),
+            av1: true,
             i444: Some(CodecAbility {
                 vp9: true,
                 av1: true,
@@ -312,36 +317,37 @@ impl Encoder {
         };
         #[cfg(feature = "hwcodec")]
         if enable_hwcodec_option() {
-            encoding.h264 |= HwRamEncoder::try_get(CodecFormat::H264).is_some();
-            encoding.h265 |= HwRamEncoder::try_get(CodecFormat::H265).is_some();
+            let best = HwRamEncoder::best();
+            encoding.h264 |= best.h264.is_some();
+            encoding.h265 |= best.h265.is_some();
         }
         #[cfg(feature = "vram")]
         if enable_vram_option() {
-            encoding.h264 |= VRamEncoder::available(CodecFormat::H264).len() > 0;
-            encoding.h265 |= VRamEncoder::available(CodecFormat::H265).len() > 0;
+            encoding.h264 |= VRamEncoder::available(CodecName::H264VRAM).len() > 0;
+            encoding.h265 |= VRamEncoder::available(CodecName::H265VRAM).len() > 0;
         }
         encoding
     }
 
     pub fn set_fallback(config: &EncoderCfg) {
-        let format = match config {
+        let name = match config {
             EncoderCfg::VPX(vpx) => match vpx.codec {
-                VpxVideoCodecId::VP8 => CodecFormat::VP8,
-                VpxVideoCodecId::VP9 => CodecFormat::VP9,
+                VpxVideoCodecId::VP8 => CodecName::VP8,
+                VpxVideoCodecId::VP9 => CodecName::VP9,
             },
-            EncoderCfg::AOM(_) => CodecFormat::AV1,
+            EncoderCfg::AOM(_) => CodecName::AV1,
             #[cfg(feature = "hwcodec")]
             EncoderCfg::HWRAM(hw) => {
                 if hw.name.to_lowercase().contains("h264") {
-                    CodecFormat::H264
+                    CodecName::H264RAM(hw.name.clone())
                 } else {
-                    CodecFormat::H265
+                    CodecName::H265RAM(hw.name.clone())
                 }
             }
             #[cfg(feature = "vram")]
             EncoderCfg::VRAM(vram) => match vram.feature.data_format {
-                hwcodec::common::DataFormat::H264 => CodecFormat::H264,
-                hwcodec::common::DataFormat::H265 => CodecFormat::H265,
+                hwcodec::common::DataFormat::H264 => CodecName::H264VRAM,
+                hwcodec::common::DataFormat::H265 => CodecName::H265VRAM,
                 _ => {
                     log::error!(
                         "should not reach here, vram not support {:?}",
@@ -351,10 +357,10 @@ impl Encoder {
                 }
             },
         };
-        let current = ENCODE_CODEC_FORMAT.lock().unwrap().clone();
-        if current != format {
-            log::info!("codec fallback: {:?} -> {:?}", current, format);
-            *ENCODE_CODEC_FORMAT.lock().unwrap() = format;
+        let current = ENCODE_CODEC_NAME.lock().unwrap().clone();
+        if current != name {
+            log::info!("codec fallback: {:?} -> {:?}", current, name);
+            *ENCODE_CODEC_NAME.lock().unwrap() = name;
         }
     }
 
@@ -391,7 +397,7 @@ impl Decoder {
         let mut decoding = SupportedDecoding {
             ability_vp8: 1,
             ability_vp9: 1,
-            ability_av1: if disable_av1() { 0 } else { 1 },
+            ability_av1: 1,
             i444: Some(CodecAbility {
                 vp9: true,
                 av1: true,
@@ -404,16 +410,9 @@ impl Decoder {
         };
         #[cfg(feature = "hwcodec")]
         {
-            decoding.ability_h264 |= if HwRamDecoder::try_get(CodecFormat::H264).is_some() {
-                1
-            } else {
-                0
-            };
-            decoding.ability_h265 |= if HwRamDecoder::try_get(CodecFormat::H265).is_some() {
-                1
-            } else {
-                0
-            };
+            let best = HwRamDecoder::best();
+            decoding.ability_h264 |= if best.h264.is_some() { 1 } else { 0 };
+            decoding.ability_h265 |= if best.h265.is_some() { 1 } else { 0 };
         }
         #[cfg(feature = "vram")]
         if enable_vram_option() && _flutter {
@@ -907,10 +906,4 @@ pub fn codec_thread_num(limit: usize) -> usize {
         *THREAD_LOG_TIME.lock().unwrap() = Some(Instant::now());
     }
     res
-}
-
-fn disable_av1() -> bool {
-    // aom is very slow for x86 sciter version on windows x64
-    // disable it for all 32 bit platforms
-    std::mem::size_of::<usize>() == 4
 }

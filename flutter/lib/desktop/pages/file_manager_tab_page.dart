@@ -99,7 +99,7 @@ class _FileManagerTabPageState extends State<FileManagerTabPage> {
           body: DesktopTab(
             controller: tabController,
             onWindowCloseButton: handleWindowCloseButton,
-            tail: const AddButton(),
+            tail: const AddButton().paddingOnly(left: 10),
             labelGetter: DesktopTab.tablabelGetter,
           )),
     );

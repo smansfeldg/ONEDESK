@@ -6,6 +6,9 @@ fn build_windows() {
     println!("cargo:rustc-link-lib=WtsApi32");
     println!("cargo:rerun-if-changed={}", file);
     println!("cargo:rerun-if-changed={}", file2);
+
+    let mut res = winres::WindowsResource::new();
+    res.set_icon("res/icon.ico").compile().unwrap();
 }
 
 #[cfg(target_os = "macos")]

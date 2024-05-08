@@ -369,9 +369,6 @@ pub fn set_option(key: String, value: String) {
                 return;
             }
         }
-    } else if &key == "audio-input" {
-        #[cfg(not(target_os = "ios"))]
-        crate::audio_service::restart();
     }
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -916,6 +913,8 @@ pub fn is_root() -> bool {
 #[cfg(any(target_os = "android", target_os = "ios", feature = "flutter"))]
 #[inline]
 pub fn check_super_user_permission() -> bool {
+    #[cfg(feature = "flatpak")]
+    return true;
     #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     return crate::platform::check_super_user_permission().unwrap_or(false);
     #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
